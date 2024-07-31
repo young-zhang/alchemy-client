@@ -1,59 +1,50 @@
+mod api_calls;
+mod subscription;
 mod swap_event;
 
+use std::convert::TryFrom;
 use std::env;
+
+use chrono::{DateTime, Utc};
+
 extern crate log;
+
+use ethers::providers::{Http, Provider};
 use futures_util::{SinkExt, StreamExt};
-use serde::{Deserialize, Serialize};
+use subscription::{parse_ethereum_subscription, EthereumSubscription};
 use tokio::signal;
 use tokio_tungstenite::tungstenite::Message;
 use util::prelude::*;
 
-#[derive(Debug, Serialize, Deserialize)]
-struct EthereumSubscription {
-    id: Option<i64>,
-    #[serde(rename = "jsonrpc")]
-    json_rpc: String,
-    result: Option<String>,
-    method: Option<String>,
-    params: Option<Params>,
-}
+use crate::api_calls::get_block_timestamp;
 
-#[derive(Debug, Serialize, Deserialize)]
-struct Params {
-    result: SubscriptionResult,
-    subscription: String,
-}
+async fn print_swap_details(provider: &Provider<Http>, subscription: &EthereumSubscription) -> AsyncResult<()> {
+    if let Some(params) = &subscription.params {
+        let block_number = &params.result.block_number();
 
-#[derive(Debug, Serialize, Deserialize)]
-struct SubscriptionResult {
-    address: String,
-    topics: Vec<String>,
-    data: String,
-    #[serde(rename = "blockNumber")]
-    block_number: String,
-    #[serde(rename = "transactionHash")]
-    transaction_hash: String,
-    #[serde(rename = "transactionIndex")]
-    transaction_index: String,
-    #[serde(rename = "blockHash")]
-    block_hash: String,
-    #[serde(rename = "logIndex")]
-    log_index: String,
-    removed: bool,
-}
+        // we make a HTTP REST call to get the block timestamp - this is just for demonstration purposes
+        let timestamp = get_block_timestamp(provider, *block_number).await;
+        let timestamp = DateTime::<Utc>::from_timestamp(timestamp as i64, 0).expect("Invalid timestamp");
 
-fn parse_ethereum_subscription(json: &str) -> Result<EthereumSubscription, serde_json::Error> {
-    serde_json::from_str(json)
-}
+        let data = &params.result.data;
+        let swap_event = swap_event::parse_swap_event_from_data(data).unwrap();
 
-fn parse_uniswap_v3(_subscription: &EthereumSubscription) {
-    // TODO: Implement
+        println!("timestamp: {} / block: {} / sqrtPriceX96: {}",
+                 timestamp.format("%Y-%m-%d %H:%M:%S UTC"),
+                 block_number,
+                 swap_event.sqrt_price_x96);
+    }
+    Ok(())
 }
 
 pub async fn spawn_wss_client(endpoint: &str, json_rpc: &str) -> AsyncResult<()> {
     let endpoint = endpoint.to_string();
     let json_rpc = json_rpc.to_string();
     tokio::spawn(async move {
+        let alchemy_api_key = env::var("ALCHEMY_API_KEY").unwrap();
+        let alchemy_url = format!("https://eth-mainnet.alchemyapi.io/v2/{}", alchemy_api_key);
+        let provider = Provider::<Http>::try_from(alchemy_url).unwrap();
+
         loop {
             match tokio_tungstenite::connect_async(&endpoint).await {
                 Ok((ws_stream, _)) => {
@@ -70,13 +61,14 @@ pub async fn spawn_wss_client(endpoint: &str, json_rpc: &str) -> AsyncResult<()>
                         match message {
                             Ok(msg) => {
                                 if let Message::Text(text) = msg {
-                                    println!("Received:");
-                                    println!("{}", text);
                                     println!();
+                                    // println!("Received:");
+                                    // println!("{}", text);
+                                    // println!();
                                     let subscription = parse_ethereum_subscription(&text).unwrap();
-                                    println!("{:#?}", subscription);
-                                    println!();
-                                    parse_uniswap_v3(&subscription);
+                                    // println!("{:#?}", subscription);
+                                    // println!();
+                                    print_swap_details(&provider, &subscription).await.unwrap();
                                 }
                             },
                             Err(e) => {
@@ -107,11 +99,18 @@ async fn main() -> AsyncResult<()> {
     let endpoint = format!("wss://eth-mainnet.ws.alchemyapi.io/v2/{}", alchemy_api_key);
     println!("endpoint: {}", endpoint);
 
-    // let pool_address = "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"; // UDSC/ETH pool
-    let pool_address = "0xCBCdF9626bC03E24f779434178A73a0B4bad62eD"; // wBTC/wETH pool
+    // UDSC/ETH pool
+    let pool_address = "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640";
 
-    let json_rpc = format!(r#"{{"jsonrpc":"2.0","method":"eth_subscribe","params":["logs",{{"address":"{}","topics":[]}}],"id":1}}"#,
-                           pool_address);
+    // wBTC/wETH pool
+    // let pool_address = "0xCBCdF9626bC03E24f779434178A73a0B4bad62eD";
+
+    // signature of Swap(address,address,int256,int256,uint160,uint128,int24)
+    // see: https://www.4byte.directory/event-signatures/?bytes_signature=0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67
+    let swap_signature = "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67";
+
+    let json_rpc = format!(r#"{{"jsonrpc":"2.0","method":"eth_subscribe","params":["logs",{{"address":"{}","topics":["{}"]}}],"id":1}}"#,
+                           pool_address, swap_signature);
     println!("json_rpc: {}", json_rpc);
     println!();
 

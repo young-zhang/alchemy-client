@@ -6,7 +6,9 @@ edition = "2018"
 
 [dependencies]
 alloy-primitives = "0.7"
+alloy-sol-types = "0.6"
 anyhow = "1.0.86"
+ethers = { version = "2.0", features = ["ws"] }
 futures-util = "0.3.30"
 log = "0.4.22"
 serde = { version = "1.0.204", features = ["derive"] }
@@ -14,6 +16,7 @@ serde_json = "1.0.121"
 tokio = { version = "1.39.2", features = ["full"] }
 tokio-tungstenite = { version = "0.23.1", features = ["native-tls"] }
 util = { path = "../util" }
+chrono = "0.4.38"
 
 [features]
 default = []
@@ -21,3 +24,4 @@ default = []
 [dev-dependencies]
 pretty_env_logger = "0.5.0"
 tokio-test = "0.4.4"
+util_test = { path = "../util_test" }

@@ -1,18 +1,18 @@
-use alloy_primitives::{FixedBytes, I32, I256, U128, U160};
+use alloy_primitives::{FixedBytes, I256, I32, U128, U160, U256};
 
 // see: https://docs.uniswap.org/contracts/v3/reference/core/interfaces/pool/IUniswapV3PoolEvents
 // int256,int256,uint160,uint128,int24
 #[derive(Debug, PartialEq)]
-struct SwapEvent {
-    amount0: I256,        // int256
-    amount1: I256,        // int256
-    sqrt_price_x96: U160, // uint160
-    liquidity: U128,      // uint128
-    tick: I32,            // int24
+pub struct SwapEvent {
+    pub amount0: I256,        // int256
+    pub amount1: I256,        // int256
+    pub sqrt_price_x96: U160, // uint160
+    pub liquidity: U128,      // uint128
+    pub tick: I32,            // int24
 }
 
 #[allow(dead_code)]
-fn parse_swap_event(data: &str) -> Result<SwapEvent, anyhow::Error> {
+pub fn parse_swap_event_from_data(data: &str) -> Result<SwapEvent, anyhow::Error> {
     let data = data.trim_start_matches("0x");
 
     let amount0_hex_str = &data[0..64];
@@ -31,7 +31,7 @@ fn parse_swap_event(data: &str) -> Result<SwapEvent, anyhow::Error> {
     let amount1_bytes = amount1_hex_str.parse::<FixedBytes<32>>().unwrap();
     let sqrt_price_x96_bytes = sqrt_price_x96_hex_str.parse::<FixedBytes<20>>().unwrap();
     let liquidity_bytes = liquidity_hex_str.parse::<FixedBytes<16>>().unwrap();
-     // even though this is only 3-bytes, we need to pad it to 4-bytes as we're parsing it to I32
+    // even though this is only 3-bytes, we need to pad it to 4-bytes as we're parsing it to I32
     let tick_bytes = tick_hex_str.parse::<FixedBytes<4>>().unwrap();
 
     let amount0 = I256::from_be_bytes(amount0_bytes.0);
@@ -55,8 +55,8 @@ mod tests {
     fn test_parse_swap_event() {
         let data = "0xffffffffffffffffffffffffffffffffffffffffffffffffdacb2cb45d2d800000000000000000000000000000000000000000000000016edc8bc819f8b8b50900000000000000000000000000000000000000324b97f19a3936459e285115b700000000000000000000000000000000000000000000053f31c5c8cac5d23340000000000000000000000000000000000000000000000000000000000001321a";
         let data = data.trim_start_matches("0x");
-        assert_eq!(data.len(), 32*5*2);
-        let event = parse_swap_event(data).unwrap();
+        assert_eq!(data.len(), 32 * 5 * 2);
+        let event = parse_swap_event_from_data(data).unwrap();
 
         assert_eq!(event.amount0, "-2681000000000000000".parse().unwrap());
         assert_eq!(event.amount1, "6767400346701675410697".parse().unwrap());
