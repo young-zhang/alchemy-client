@@ -1,3 +1,5 @@
+mod swap_event;
+
 use std::env;
 extern crate log;
 use futures_util::{SinkExt, StreamExt};

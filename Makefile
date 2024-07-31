@@ -1,10 +1,12 @@
 .DEFAULT_GOAL := build
 
 build:
+	clear
 	cargo build
 
 test:
-	RUST_LOG=debug cargo test
+	clear
+	RUST_BACKTRACE=1 RUST_LOG=debug cargo test
 
 lint:
 	cargo clippy
@@ -19,4 +21,4 @@ format:
 	cargo fmt
 
 run: build
-	RUST_BACKTRACE=1 target/debug/client
+	RUST_LOG=debug RUST_BACKTRACE=1 target/debug/client
