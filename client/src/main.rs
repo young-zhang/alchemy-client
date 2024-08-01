@@ -17,9 +17,13 @@ use tokio::signal;
 use tokio_tungstenite::tungstenite::Message;
 use util::prelude::*;
 
-use crate::api_calls::get_block_timestamp;
+use crate::api_calls::{get_block_timestamp, get_exch_price, get_pool_tokens, get_token_decimals};
 
-async fn print_swap_details(subscription: &EthereumSubscription, provider: Arc<Provider<Http>>) -> AsyncResult<()> {
+async fn print_swap_details(subscription: &EthereumSubscription,
+                            token0_decimals: u8,
+                            token1_decimals: u8,
+                            provider: Arc<Provider<Http>>)
+                            -> AsyncResult<()> {
     if let Some(params) = &subscription.params {
         let block_number = &params.result.block_number();
 
@@ -29,25 +33,36 @@ async fn print_swap_details(subscription: &EthereumSubscription, provider: Arc<P
 
         let data = &params.result.data;
         let swap_event = swap_event::parse_swap_event_from_data(data).unwrap();
+        let exchange_rate = get_exch_price(swap_event.sqrt_price_x96, token0_decimals, token1_decimals);
 
-        println!("timestamp: {} / block: {} / sqrtPriceX96: {}",
+        println!("timestamp: {} / block: {} / sqrtPriceX96: ~{:.4}",
                  timestamp.format("%Y-%m-%d %H:%M:%S UTC"),
                  block_number,
-                 swap_event.sqrt_price_x96);
+                 exchange_rate);
     }
     Ok(())
 }
 
-pub async fn spawn_wss_client(endpoint: &str, json_rpc: &str) -> AsyncResult<()> {
-    let endpoint = endpoint.to_string();
-    let json_rpc = json_rpc.to_string();
+pub async fn spawn_wss_client(pool_address: String, swap_signature: String) -> AsyncResult<()> {
     tokio::spawn(async move {
         let alchemy_api_key = env::var("ALCHEMY_API_KEY").unwrap();
+        let alchemy_wss_endpoint = format!("wss://eth-mainnet.ws.alchemyapi.io/v2/{}", alchemy_api_key);
+        println!("endpoint: {}", alchemy_wss_endpoint);
+
+        let json_rpc = format!(r#"{{"jsonrpc":"2.0","method":"eth_subscribe","params":["logs",{{"address":"{}","topics":["{}"]}}],"id":1}}"#,
+                               pool_address, swap_signature);
+        println!("json_rpc: {}", json_rpc);
+        println!();
+
         let alchemy_url = format!("https://eth-mainnet.alchemyapi.io/v2/{}", alchemy_api_key);
         let provider = Arc::new(Provider::<Http>::try_from(alchemy_url).unwrap());
 
+        let (token0, token1) = get_pool_tokens(pool_address.parse().unwrap(), provider.clone()).await.unwrap();
+        let token0_decimals = get_token_decimals(token0, provider.clone()).await.unwrap();
+        let token1_decimals = get_token_decimals(token1, provider.clone()).await.unwrap();
+
         loop {
-            match tokio_tungstenite::connect_async(&endpoint).await {
+            match tokio_tungstenite::connect_async(&alchemy_wss_endpoint).await {
                 Ok((ws_stream, _)) => {
                     let (mut write, mut read) = ws_stream.split();
 
@@ -62,14 +77,18 @@ pub async fn spawn_wss_client(endpoint: &str, json_rpc: &str) -> AsyncResult<()>
                         match message {
                             Ok(msg) => {
                                 if let Message::Text(text) = msg {
-                                    println!();
+                                    // println!();
                                     // println!("Received:");
                                     // println!("{}", text);
                                     // println!();
                                     let subscription = parse_ethereum_subscription(&text).unwrap();
                                     // println!("{:#?}", subscription);
                                     // println!();
-                                    print_swap_details(&subscription, provider.clone()).await.unwrap();
+                                    print_swap_details(&subscription,
+                                                       token0_decimals,
+                                                       token1_decimals,
+                                                       provider.clone()).await
+                                                                        .unwrap();
                                 }
                             },
                             Err(e) => {
@@ -93,13 +112,6 @@ pub async fn spawn_wss_client(endpoint: &str, json_rpc: &str) -> AsyncResult<()>
 #[tokio::main]
 #[allow(unused_must_use)]
 async fn main() -> AsyncResult<()> {
-    let alchemy_api_key = env::var("ALCHEMY_API_KEY").map_err(|e| {
-                                                         eprintln!("Couldn't read ALCHEMY_API_KEY: {}", e);
-                                                         anyhow::anyhow!("Failed to read ALCHEMY_API_KEY")
-                                                     })?;
-    let endpoint = format!("wss://eth-mainnet.ws.alchemyapi.io/v2/{}", alchemy_api_key);
-    println!("endpoint: {}", endpoint);
-
     // UDSC/ETH pool
     let pool_address = "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640";
 
@@ -110,12 +122,7 @@ async fn main() -> AsyncResult<()> {
     // see: https://www.4byte.directory/event-signatures/?bytes_signature=0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67
     let swap_signature = "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67";
 
-    let json_rpc = format!(r#"{{"jsonrpc":"2.0","method":"eth_subscribe","params":["logs",{{"address":"{}","topics":["{}"]}}],"id":1}}"#,
-                           pool_address, swap_signature);
-    println!("json_rpc: {}", json_rpc);
-    println!();
-
-    spawn_wss_client(&endpoint, &json_rpc).await.unwrap();
+    spawn_wss_client(pool_address.to_string(), swap_signature.to_string()).await.unwrap();
     signal::ctrl_c().await?;
     println!("Received ctrl-c signal, shutting down...");
 
