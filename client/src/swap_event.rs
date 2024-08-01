@@ -1,4 +1,4 @@
-use alloy_primitives::{FixedBytes, I256, I32, U128, U160, U256};
+use alloy_primitives::{FixedBytes, I256, I32, U128, U160};
 
 // see: https://docs.uniswap.org/contracts/v3/reference/core/interfaces/pool/IUniswapV3PoolEvents
 // int256,int256,uint160,uint128,int24

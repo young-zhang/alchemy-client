@@ -4,6 +4,7 @@ mod swap_event;
 
 use std::convert::TryFrom;
 use std::env;
+use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 
@@ -18,12 +19,12 @@ use util::prelude::*;
 
 use crate::api_calls::get_block_timestamp;
 
-async fn print_swap_details(provider: &Provider<Http>, subscription: &EthereumSubscription) -> AsyncResult<()> {
+async fn print_swap_details(subscription: &EthereumSubscription, provider: Arc<Provider<Http>>) -> AsyncResult<()> {
     if let Some(params) = &subscription.params {
         let block_number = &params.result.block_number();
 
         // we make a HTTP REST call to get the block timestamp - this is just for demonstration purposes
-        let timestamp = get_block_timestamp(provider, *block_number).await;
+        let timestamp = get_block_timestamp(*block_number, provider).await;
         let timestamp = DateTime::<Utc>::from_timestamp(timestamp as i64, 0).expect("Invalid timestamp");
 
         let data = &params.result.data;
@@ -43,7 +44,7 @@ pub async fn spawn_wss_client(endpoint: &str, json_rpc: &str) -> AsyncResult<()>
     tokio::spawn(async move {
         let alchemy_api_key = env::var("ALCHEMY_API_KEY").unwrap();
         let alchemy_url = format!("https://eth-mainnet.alchemyapi.io/v2/{}", alchemy_api_key);
-        let provider = Provider::<Http>::try_from(alchemy_url).unwrap();
+        let provider = Arc::new(Provider::<Http>::try_from(alchemy_url).unwrap());
 
         loop {
             match tokio_tungstenite::connect_async(&endpoint).await {
@@ -68,7 +69,7 @@ pub async fn spawn_wss_client(endpoint: &str, json_rpc: &str) -> AsyncResult<()>
                                     let subscription = parse_ethereum_subscription(&text).unwrap();
                                     // println!("{:#?}", subscription);
                                     // println!();
-                                    print_swap_details(&provider, &subscription).await.unwrap();
+                                    print_swap_details(&subscription, provider.clone()).await.unwrap();
                                 }
                             },
                             Err(e) => {
