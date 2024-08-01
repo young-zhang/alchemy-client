@@ -1,6 +1,8 @@
 use std::convert::TryFrom;
+use std::str::FromStr;
 use std::sync::Arc;
 
+use alloy_primitives::{U160, U256};
 use ethers::contract::abigen;
 use ethers::prelude::{Address, Middleware};
 use ethers::providers::{Http, Provider};
@@ -45,6 +47,23 @@ pub async fn get_pool_tokens(pool_address: Address, provider: Arc<Provider<Http>
     let token0: Address = pool.token_0().call().await.unwrap();
     let token1: Address = pool.token_1().call().await.unwrap();
     Ok((token0, token1))
+}
+
+pub fn get_exch_price(sqrt_price_x96: U160, token0_decimals: u8, token1_decimals: u8) -> f64 {
+    let sqrt_price_x96 = U256::from(sqrt_price_x96);
+    let sqrt_price_x96 = u256_to_f64(sqrt_price_x96);
+    let price = (sqrt_price_x96 * sqrt_price_x96) / (2.0_f64.powi(192));
+
+    let token0_decimals = i32::from(token0_decimals);
+    let token1_decimals = i32::from(token1_decimals);
+    let exponent = token1_decimals - token0_decimals;
+    10.0_f64.powi(exponent) / price
+}
+
+fn u256_to_f64(value: U256) -> f64 {
+    // TODO: this is ugly, need to clean up
+    let decimal_string = value.to_string();
+    f64::from_str(&decimal_string).unwrap()
 }
 
 #[cfg(test)]
@@ -117,7 +136,14 @@ mod tests {
     #[test]
     fn test_get_pool_tokens() {
         util_test::logging::init_logging();
-
         let _ = tokio_test::block_on(test_get_pool_tokens_async());
+    }
+
+    #[test]
+    fn test_get_exch_price() {
+        // see: https://blog.uniswap.org/uniswap-v3-math-primer
+        let sqrt_price_x96 = U160::from(2018382873588440326581633304624437u128);
+        let price = get_exch_price(sqrt_price_x96, 6, 18);
+        assert!((price - 1540.82f64).abs() < 0.01);
     }
 }
