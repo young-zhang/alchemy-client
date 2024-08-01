@@ -35,7 +35,7 @@ async fn print_swap_details(subscription: &EthereumSubscription,
         let swap_event = swap_event::parse_swap_event_from_data(data).unwrap();
         let exchange_rate = get_exch_price(swap_event.sqrt_price_x96, token0_decimals, token1_decimals);
 
-        println!("timestamp: {} / block: {} / sqrtPriceX96: ~{:.4}",
+        println!("timestamp: {} / block: {} / price: ~{:.4}",
                  timestamp.format("%Y-%m-%d %H:%M:%S UTC"),
                  block_number,
                  exchange_rate);
