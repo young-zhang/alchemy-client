@@ -47,7 +47,7 @@ pub async fn get_pool_tokens(pool_address: Address, provider: Arc<Provider<Http>
 }
 
 pub fn get_exchange_price(sqrt_price_x96: U160, token0_decimals: u8, token1_decimals: u8) -> f64 {
-    let sqrt_price_x96 = u160_to_f64(sqrt_price_x96);
+    let sqrt_price_x96 = u160_to_f64_lossy(sqrt_price_x96);
     let price = (sqrt_price_x96 * sqrt_price_x96) / (2.0_f64.powi(192));
 
     let token0_decimals = i32::from(token0_decimals);
@@ -56,7 +56,7 @@ pub fn get_exchange_price(sqrt_price_x96: U160, token0_decimals: u8, token1_deci
     10.0_f64.powi(exponent) / price
 }
 
-fn u160_to_f64(value: U160) -> f64 {
+fn u160_to_f64_lossy(value: U160) -> f64 {
     let value_bytes = value.to_be_bytes_trimmed_vec();
     let u256_value = ethereum_types::U256::from_big_endian(&value_bytes);
     u256_to_f64_lossy(u256_value)
