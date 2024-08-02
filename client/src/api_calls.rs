@@ -123,10 +123,10 @@ mod tests {
 
     async fn test_get_pool_tokens_async() -> AsyncResult<()> {
         let provider = get_eth_provider();
-        let pool_address = "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"; // UDSC/WETH pool
+        let pool_address = "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"; // USDC/wETH pool
         let (token0, token1) = get_pool_tokens(pool_address.parse().unwrap(), provider).await.unwrap();
         assert_eq!(token0, "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48".parse().unwrap()); // USDC : token0
-        assert_eq!(token1, "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2".parse().unwrap()); // WETH : token1
+        assert_eq!(token1, "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2".parse().unwrap()); // wETH : token1
         Ok(())
     }
 

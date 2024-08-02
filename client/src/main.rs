@@ -117,7 +117,7 @@ async fn main() -> AsyncResult<()> {
                                            anyhow::anyhow!("Failed to read ALCHEMY_API_KEY")
                                        })?;
 
-    // UDSC/ETH pool
+    // USDC/wETH pool
     let pool_address = "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640";
 
     // wBTC/wETH pool
