@@ -112,6 +112,11 @@ pub async fn spawn_wss_client(pool_address: String, swap_signature: String) -> A
 #[tokio::main]
 #[allow(unused_must_use)]
 async fn main() -> AsyncResult<()> {
+    let _ = env::var("ALCHEMY_API_KEY").map_err(|e| {
+                                           eprintln!("Couldn't read ALCHEMY_API_KEY: {}", e);
+                                           anyhow::anyhow!("Failed to read ALCHEMY_API_KEY")
+                                       })?;
+
     // UDSC/ETH pool
     let pool_address = "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640";
 
