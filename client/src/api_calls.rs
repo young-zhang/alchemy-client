@@ -2,7 +2,7 @@ use std::convert::TryFrom;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use alloy_primitives::{U160, U256};
+use alloy_primitives::U160;
 use ethers::contract::abigen;
 use ethers::prelude::{Address, Middleware};
 use ethers::providers::{Http, Provider};
@@ -15,7 +15,6 @@ pub(crate) async fn get_block_timestamp(block_number: u64, provider: Arc<Provide
 
 abigen!(IERC20, r#"[function decimals() external view returns (uint8)]"#);
 
-#[allow(dead_code)]
 pub async fn get_token_decimals(token_address: Address, provider: Arc<Provider<Http>>) -> AsyncResult<u8> {
     let token = IERC20::new(token_address, provider);
     let token_decimal = token.decimals().call().await.unwrap();
@@ -41,7 +40,6 @@ abigen!(UniswapV3Pool,
         }]
        "#,);
 
-#[allow(dead_code)]
 pub async fn get_pool_tokens(pool_address: Address, provider: Arc<Provider<Http>>) -> AsyncResult<(Address, Address)> {
     let pool = UniswapV3Pool::new(pool_address, provider);
     let token0: Address = pool.token_0().call().await.unwrap();
@@ -50,8 +48,7 @@ pub async fn get_pool_tokens(pool_address: Address, provider: Arc<Provider<Http>
 }
 
 pub fn get_exch_price(sqrt_price_x96: U160, token0_decimals: u8, token1_decimals: u8) -> f64 {
-    let sqrt_price_x96 = U256::from(sqrt_price_x96);
-    let sqrt_price_x96 = u256_to_f64(sqrt_price_x96);
+    let sqrt_price_x96 = u160_to_f64(sqrt_price_x96);
     let price = (sqrt_price_x96 * sqrt_price_x96) / (2.0_f64.powi(192));
 
     let token0_decimals = i32::from(token0_decimals);
@@ -60,7 +57,7 @@ pub fn get_exch_price(sqrt_price_x96: U160, token0_decimals: u8, token1_decimals
     10.0_f64.powi(exponent) / price
 }
 
-fn u256_to_f64(value: U256) -> f64 {
+fn u160_to_f64(value: U160) -> f64 {
     // TODO: this is ugly, need to clean up
     let decimal_string = value.to_string();
     f64::from_str(&decimal_string).unwrap()

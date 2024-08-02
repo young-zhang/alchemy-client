@@ -64,16 +64,16 @@ pub async fn spawn_wss_client(pool_address: String, swap_signature: String) -> A
         loop {
             match tokio_tungstenite::connect_async(&alchemy_wss_endpoint).await {
                 Ok((ws_stream, _)) => {
-                    let (mut write, mut read) = ws_stream.split();
+                    let (mut tx, mut rx) = ws_stream.split();
 
                     // Send JSON-RPC subscription
-                    if let Err(e) = write.send(Message::Text(json_rpc.clone())).await {
+                    if let Err(e) = tx.send(Message::Text(json_rpc.clone())).await {
                         eprintln!("Failed to send JSON-RPC: {}", e);
                         continue;
                     }
 
                     // Read incoming messages
-                    while let Some(message) = read.next().await {
+                    while let Some(message) = rx.next().await {
                         match message {
                             Ok(msg) => {
                                 if let Message::Text(text) = msg {
