@@ -17,7 +17,7 @@ use tokio::signal;
 use tokio_tungstenite::tungstenite::Message;
 use util::prelude::*;
 
-use crate::api_calls::{get_block_timestamp, get_exch_price, get_pool_tokens, get_token_decimals};
+use crate::api_calls::{get_block_timestamp, get_exchange_price, get_pool_tokens, get_token_decimals};
 
 async fn print_swap_details(subscription: &EthereumSubscription,
                             token0_decimals: u8,
@@ -33,7 +33,7 @@ async fn print_swap_details(subscription: &EthereumSubscription,
 
         let data = &params.result.data;
         let swap_event = swap_event::parse_swap_event_from_data(data).unwrap();
-        let exchange_rate = get_exch_price(swap_event.sqrt_price_x96, token0_decimals, token1_decimals);
+        let exchange_rate = get_exchange_price(swap_event.sqrt_price_x96, token0_decimals, token1_decimals);
 
         println!("timestamp: {} / block: {} / price: ~{:.4}",
                  timestamp.format("%Y-%m-%d %H:%M:%S UTC"),

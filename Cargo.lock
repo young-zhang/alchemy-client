@@ -594,6 +594,7 @@ dependencies = [
  "alloy-sol-types",
  "anyhow",
  "chrono",
+ "ethereum-types",
  "ethers",
  "futures-util",
  "log",

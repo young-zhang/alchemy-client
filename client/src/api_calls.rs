@@ -1,5 +1,4 @@
 use std::convert::TryFrom;
-use std::str::FromStr;
 use std::sync::Arc;
 
 use alloy_primitives::U160;
@@ -47,7 +46,7 @@ pub async fn get_pool_tokens(pool_address: Address, provider: Arc<Provider<Http>
     Ok((token0, token1))
 }
 
-pub fn get_exch_price(sqrt_price_x96: U160, token0_decimals: u8, token1_decimals: u8) -> f64 {
+pub fn get_exchange_price(sqrt_price_x96: U160, token0_decimals: u8, token1_decimals: u8) -> f64 {
     let sqrt_price_x96 = u160_to_f64(sqrt_price_x96);
     let price = (sqrt_price_x96 * sqrt_price_x96) / (2.0_f64.powi(192));
 
@@ -58,9 +57,45 @@ pub fn get_exch_price(sqrt_price_x96: U160, token0_decimals: u8, token1_decimals
 }
 
 fn u160_to_f64(value: U160) -> f64 {
-    // TODO: this is ugly, need to clean up
-    let decimal_string = value.to_string();
-    f64::from_str(&decimal_string).unwrap()
+    let value_bytes = value.to_be_bytes_trimmed_vec();
+    let u256_value = ethereum_types::U256::from_big_endian(&value_bytes);
+    u256_to_f64_lossy(u256_value)
+}
+
+fn u256_to_f64_lossy(u256_value: ethereum_types::U256) -> f64 {
+    // Reference: https://blog.m-ou.se/floats/
+    // Step 1: Get leading zeroes
+    let leading_zeroes = u256_value.leading_zeros();
+    // Step 2: Get msb to be the farthest left bit
+    let left_aligned = u256_value << leading_zeroes;
+    // Step 3: Shift msb to fit in lower 53 bits of the first u64 (64-53=11)
+    let quarter_aligned = left_aligned >> 11;
+    let mantissa = quarter_aligned.0[3];
+    // Step 4: For the dropped bits (all bits beyond the 53 most significant
+    // We want to know only 2 things. If the msb of the dropped bits is 1 or 0,
+    // and if any of the other bits are 1. (See blog for explanation)
+    // So we take care to preserve the msb bit, while jumbling the rest of the bits
+    // together so that any 1s will survive. If all 0s, then the result will also be 0.
+    let dropped_bits = quarter_aligned.0[1] | quarter_aligned.0[0] | (left_aligned.0[0] & 0xFFFF_FFFF);
+    let dropped_bits = (dropped_bits & 0x7FFF_FFFF_FFFF_FFFF) | (dropped_bits >> 63);
+    let dropped_bits = quarter_aligned.0[2] | dropped_bits;
+    // Step 5: dropped_bits contains the msb of the original bits and an OR-mixed 63 bits.
+    // If msb of dropped bits is 0, it is mantissa + 0
+    // If msb of dropped bits is 1, it is mantissa + 0 only if mantissa the lowest bit is 0
+    // and other bits of the dropped bits are all 0 (which both can be tested with the below all at once)
+    let mantissa = mantissa + ((dropped_bits - (dropped_bits >> 63 & !mantissa)) >> 63);
+    // Step 6: Calculate the exponent
+    // If self is 0, exponent should be 0 (special meaning) and mantissa will end up 0 too
+    // Otherwise, (255 - n) + 1022, so it simplifies to 1277 - n
+    // 1023 and 1022 are the cutoffs for the exponent having the msb next to the decimal point
+    let exponent = if u256_value.is_zero() {
+        0
+    } else {
+        1277 - leading_zeroes as u64
+    };
+    // Step 7: sign bit is always 0, exponent is shifted into place
+    // Use addition instead of bitwise OR to saturate the exponent if mantissa overflows
+    f64::from_bits((exponent << 52) + mantissa)
 }
 
 #[cfg(test)]
@@ -137,10 +172,11 @@ mod tests {
     }
 
     #[test]
-    fn test_get_exch_price() {
+    fn test_get_exchange_price() {
+        util_test::logging::init_logging();
         // see: https://blog.uniswap.org/uniswap-v3-math-primer
         let sqrt_price_x96 = U160::from(2018382873588440326581633304624437u128);
-        let price = get_exch_price(sqrt_price_x96, 6, 18);
+        let price = get_exchange_price(sqrt_price_x96, 6, 18);
         assert!((price - 1540.82f64).abs() < 0.01);
     }
 }
