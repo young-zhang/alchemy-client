@@ -12,6 +12,7 @@ pub(crate) async fn get_block_timestamp(block_number: u64, provider: Arc<Provide
     u64::try_from(block.unwrap().timestamp).unwrap()
 }
 
+// see: https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/ERC20/extensions/IERC20Metadata.sol
 abigen!(IERC20, r#"[function decimals() external view returns (uint8)]"#);
 
 pub async fn get_token_decimals(token_address: Address, provider: Arc<Provider<Http>>) -> AsyncResult<u8> {
@@ -20,6 +21,9 @@ pub async fn get_token_decimals(token_address: Address, provider: Arc<Provider<H
     Ok(token_decimal)
 }
 
+// This definition comes from the repo: https://github.com/Uniswap/v3-core
+// From the generated file: artifacts/contracts/UniswapV3Pool.sol/UniswapV3Pool.json
+// towards the bottom of the file, right above "bytecode"
 abigen!(UniswapV3Pool,
         r#"[{
             "constant": true,
@@ -71,7 +75,7 @@ fn u256_to_f64_lossy(u256_value: ethereum_types::U256) -> f64 {
     // Step 3: Shift msb to fit in lower 53 bits of the first u64 (64-53=11)
     let quarter_aligned = left_aligned >> 11;
     let mantissa = quarter_aligned.0[3];
-    // Step 4: For the dropped bits (all bits beyond the 53 most significant
+    // Step 4: For the dropped bits - all bits beyond the 53 most significant
     // We want to know only 2 things. If the msb of the dropped bits is 1 or 0,
     // and if any of the other bits are 1. (See blog for explanation)
     // So we take care to preserve the msb bit, while jumbling the rest of the bits
