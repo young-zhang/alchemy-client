@@ -1,9 +1,11 @@
 # https://rust-lang.github.io/rustfmt
+tab_spaces = 3
 array_width = 120
 max_width = 120
 binop_separator = "Front"
 brace_style = "SameLineWhere"
 chain_width = 120
+control_brace_style = "ClosingNextLine"
 fn_params_layout = "Tall"
 fn_call_width = 120
 fn_single_line = true
